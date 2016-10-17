@@ -1,10 +1,16 @@
 <link rel="import" href="../polymer/polymer.html">
 
+<link rel="import" href="../oc-delivery-agent-api/oc-delivery-agent-api.html">
+<link rel="import" href="../iron-data-table/iron-data-table.html">
+<link rel="import" href="../oc-grid-controls/oc-grid-controls.html">
+<link rel="import" href="../oc-iron-data-table-styles/oc-iron-data-table-styles.html">
+<link rel="import" href="../oc-paginator/mercury-paginator.html">
+
 <!--
 `oc-delivery-agent-transactions`
 Element to display delivery agent transactions on the Ordercloud platform
 
-@demo demo/index.html 
+@demo demo/index.html
 -->
 
 <dom-module id="oc-delivery-agent-transactions">
@@ -14,20 +20,91 @@ Element to display delivery agent transactions on the Ordercloud platform
         display: block;
       }
     </style>
-    <h2>Hello [[prop1]]</h2>
+
+    <oc-delivery-agent-api id="deliveryApi"></oc-delivery-agent-api>
+
+    <oc-grid-controls data="[[ _transactions ]]" total-count="[[ _totalItems ]]" num-entries="[[ _pageSize ]]">
+      <iron-data-table
+              id="dataTable"
+              current-page="[[ _currentPage ]]"
+              loading="{{ loading }}">
+        <data-table-column name="Transaction Group ID" >
+          <template>[[item.groupingId]]</template>
+        </data-table-column>
+        <data-table-column name="Description" >
+          <template>[[item.description]]</template>
+        </data-table-column>
+        <data-table-column name="Date" >
+          <template>[[item.date]]</template>
+        </data-table-column>
+        <data-table-column name="Amount" >
+          <template>[[item.amount]]</template>
+        </data-table-column>
+        <data-table-column name="Debit/Credit" >
+          <template>[[_computeType(item.sign)]]</template>
+        </data-table-column>
+
+
+
+      </iron-data-table>
+    </oc-grid-controls>
+
   </template>
 
   <script>
     Polymer({
 
       is: 'oc-delivery-agent-transactions',
+      behaviors: [OC.Behaviours.ApiConsumer],
 
       properties: {
-        prop1: {
-          type: String,
-          value: 'oc-delivery-agent-transactions',
+        organisationId: Number,
+        agentId: Number,
+        loading: {
+          type: Boolean,
+          notify: true
         },
+
+        _transactions : Array,
+        _totalItems: Number,
+        _pageSize: Number,
+        _currentPage: Number,
       },
+
+      observers : [
+        'refresh(organisationId, agentId)'
+      ],
+
+      refresh : function(){
+
+        if(!this.agentId || !this.organisationId) return;
+
+        this._getTransactions(this.organisationId, this.agentId);
+
+      },
+
+      _getTransactions : function(organisationId, agentId, page, pageSize) {
+        this.loading = true;
+        var criteria = {};
+        criteria.page = page || 1;
+        criteria.pageSize = pageSize || 20;
+
+        this.$.deliveryApi.getTransactions(organisationId, agentId, criteria)
+                .then(function(request){
+
+                  this._transactions = request.response.results;
+                  this._totalItems = request.response.count;
+                  this._pageSize = 10;
+                  this._currentPage = 1;
+
+                }.bind(this))
+                .catch(this.fire.bind(this, 'delivery-agents-error', 'Failed to load delivery agent transactions'))
+                .finally(this.set.bind(this, 'loading', false));
+      },
+
+      _computeType : function(sign) {
+        return (sign == "+") ? "Debit" : "Credit";
+      }
 
     });
   </script>
